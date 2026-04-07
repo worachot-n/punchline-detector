@@ -11,7 +11,7 @@ natural topic/bit structure — not laughter positions.
 ## Features
 
 - **8-phase automated pipeline** — download, separate, detect, annotate, export
-- **Ensemble laughter detection** — spectral pattern analysis + energy-based fallback
+- **Ensemble laughter detection** — spectral pattern analysis (YAMNet-style) + Gillick model
 - **Context-based paragraph segmentation** — splits by comedy bit, not by laugh event
 - **3 laugh intensity levels** — `[big_laugh]` / `[medium_laugh]` / `[chuckle]`
 - **3 output formats** — clean `.txt`, timestamped `.txt`, full `.json`
@@ -26,7 +26,6 @@ natural topic/bit structure — not laughter positions.
 | Tool | Purpose | Install |
 |------|---------|---------|
 | **ffmpeg** | Audio conversion (WAV 16kHz) | `scoop install ffmpeg` |
-| **deno** | YouTube JS extraction (yt-dlp) | `scoop install deno` |
 | **Python 3.11–3.12** | Runtime (3.13+ breaks torch 2.4) | `scoop install python312` |
 | **uv** | Python package manager | `scoop install uv` |
 
@@ -77,7 +76,15 @@ abc123xyz
 ```
 
 ```bash
-uv run comedy-pipeline batch comedy_batch.txt --output-dir ./dataset
+uv run comedy-pipeline batch comedy_batch.txt --output-dir ./dataset --skip-qa
+```
+
+### Analysis Viewer
+
+A PyQt6 GUI viewer for inspecting annotated transcripts alongside their audio:
+
+```bash
+uv run comedy-viewer
 ```
 
 ---
@@ -192,13 +199,13 @@ Phase 2 ── Audio Preprocessing
     │
     ▼
 Phase 3 ── Laughter Detection (Ensemble)
-              Spectral detector  →  rhythmic energy bursts, 500–4000 Hz centroid
-              Energy-based fallback  →  RMS threshold scan
+              Spectral detector (YAMNet-style)  →  rhythmic energy bursts, 500–4000 Hz centroid
+              Gillick model  →  learned laughter classifier (skipped if unavailable)
               Ensemble merge  →  agreed events get higher confidence
     │
     ▼
 Phase 4 ── Post-Processing
-              merge_close_events  →  gap ≤ 0.5s merged into one event
+              merge_close_events  →  gap ≤ 0.1s merged into one event
               filter_by_duration  →  0.3s – 30s kept
               compute_intensity   →  RMS → big / medium / chuckle
               validate_spectral   →  reject non-laughter noise
@@ -251,34 +258,38 @@ understanding."                    understanding what I'm saying.
 
 | Signal | Weight | How it works |
 |--------|--------|--------------|
-| **Long pause** | 0.50 | Silence > 3s (excluding laugh pauses) = clear topic break |
+| **Long pause** | 0.50 | Silence > 2s (excluding laugh pauses) = clear topic break |
 | **Transition phrase** | 0.30 | "Anyway...", "Have you ever noticed...", "The other day..." |
 | **Semantic shift** | 0.30 | Cosine similarity of sentence embeddings drops below 0.55 |
 | **Post-big-laugh pause** | 0.25 | Comedian pauses > 2s after a big laugh = new bit |
 
 A timestamp accumulates votes from all signals that fire near it.
-If the combined score reaches `0.4`, a paragraph break is placed there.
+If the combined score reaches `0.25`, a paragraph break is placed there.
 
 ---
 
 ## Project Structure
 
 ```
-Comedy_Audio_Transcript/
+punchline-detector/
 ├── pyproject.toml
 ├── src/
-│   └── comedy_pipeline/
-│       ├── models.py               # TimelineEntry, LaughterEvent, Paragraph
-│       ├── phase1_acquisition.py   # yt-dlp + transcript API
-│       ├── phase2_preprocessing.py # Demucs source separation
-│       ├── phase3_detection.py     # Spectral + energy ensemble detection
-│       ├── phase4_postprocessing.py# Merge, filter, intensity, spectral QA
-│       ├── phase5_timeline.py      # Unified timeline + latency
-│       ├── phase6_qa.py            # Random sampling for manual QA
-│       ├── phase7_segmentation.py  # 4-signal paragraph segmentation
-│       ├── phase8_transcript.py    # .txt / .json export
-│       ├── pipeline.py             # run_full_pipeline() orchestrator
-│       └── cli.py                  # Click CLI entry point
+│   ├── comedy_pipeline/
+│   │   ├── models.py               # TimelineEntry, LaughterEvent, Paragraph
+│   │   ├── phase1_acquisition.py   # yt-dlp + transcript API
+│   │   ├── phase2_preprocessing.py # Demucs source separation
+│   │   ├── phase3_detection.py     # Spectral (YAMNet-style) + Gillick ensemble
+│   │   ├── phase4_postprocessing.py# Merge, filter, intensity, spectral QA
+│   │   ├── phase5_timeline.py      # Unified timeline + latency
+│   │   ├── phase6_qa.py            # Random sampling for manual QA
+│   │   ├── phase7_segmentation.py  # 4-signal paragraph segmentation
+│   │   ├── phase8_transcript.py    # .txt / .json export
+│   │   ├── pipeline.py             # run_full_pipeline() orchestrator
+│   │   └── cli.py                  # Click CLI entry point
+│   └── analysis/
+│       ├── models.py               # Analysis data models
+│       ├── viewer.py               # PyQt6 audio/transcript viewer UI
+│       └── __main__.py             # comedy-viewer entry point
 ├── tests/
 │   └── test_pipeline.py            # 22 unit tests
 └── dataset/                        # Output files (git-ignored)

@@ -23,7 +23,7 @@ from .models import TimelineEntry
 
 def detect_long_pauses(
     timeline: list[TimelineEntry],
-    min_pause: float = 3.0,
+    min_pause: float = 2.0,
 ) -> list[float]:
     """
     Find points where the comedian pauses for > min_pause seconds.
@@ -213,9 +213,9 @@ def detect_post_laugh_breaks(
 def find_paragraph_breaks(
     timeline: list[TimelineEntry],
     weights: dict[str, float] | None = None,
-    vote_threshold: float = 0.4,
+    vote_threshold: float = 0.25,
     min_paragraph_duration: float = 5.0,
-    max_paragraph_duration: float = 60.0,
+    max_paragraph_duration: float = 30.0,
 ) -> list[float]:
     """
     Combine all 4 signals using weighted voting to find paragraph breaks.

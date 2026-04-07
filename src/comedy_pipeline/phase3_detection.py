@@ -159,9 +159,12 @@ def detect_with_gillick(
     """
     try:
         return _detect_gillick_model(audio_path, threshold, min_length)
-    except (ImportError, Exception) as e:
-        print(f"  Gillick model not available ({e}), using energy-based fallback")
-        return _detect_energy_based(audio_path, threshold, min_length)
+    except ImportError:
+        print("  Gillick model not available (No module named 'laughter_detection'), skipping")
+        return []
+    except Exception as e:
+        print(f"  Gillick detection failed ({e}), skipping")
+        return []
 
 
 def _detect_gillick_model(
@@ -264,6 +267,10 @@ def ensemble_detection(
     Events detected by both models get higher confidence.
     Single-model events get reduced confidence.
     """
+    if not gillick_events:
+        print(f"  Using YAMNet only: {len(yamnet_events)} events")
+        return sorted(yamnet_events, key=lambda e: e.start)
+
     ensemble_events = []
     used_gillick = set()
 

@@ -10,7 +10,7 @@ from .models import LaughterEvent
 
 def merge_close_events(
     events: list[LaughterEvent],
-    max_gap: float = 0.5,
+    max_gap: float = 0.1,
 ) -> list[LaughterEvent]:
     """
     Merge laughter events that are close together (< max_gap seconds apart).
@@ -33,7 +33,7 @@ def merge_close_events(
     for event in sorted_events[1:]:
         last = merged[-1]
 
-        if event.start - last.end <= max_gap:
+        if 0 <= event.start - last.end <= max_gap:
             # Merge: extend the current event
             last.end = max(last.end, event.end)
             last.duration = last.end - last.start
