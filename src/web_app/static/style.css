@@ -1,0 +1,31 @@
+/* Punchline Detector — minimal style overrides */
+
+.annotated-text {
+  font-family: 'Georgia', serif;
+  line-height: 1.8;
+  font-size: 0.95rem;
+}
+
+th.sortable:hover {
+  background-color: #f8f9fa;
+}
+
+.accordion-button:not(.collapsed) {
+  background-color: #fff5f5;
+  color: #dc3545;
+}
+
+.progress-bar {
+  transition: width 0.4s ease;
+}
+
+/* Make the events table smaller on wide screens */
+#eventsTable td, #eventsTable th {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+/* Paragraph text preview in accordion header */
+.accordion-button .text-truncate {
+  display: inline-block;
+}

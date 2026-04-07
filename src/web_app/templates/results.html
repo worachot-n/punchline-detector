@@ -1,0 +1,521 @@
+{% extends "base.html" %}
+{% block title %}Results — {{ data.video_id }}{% endblock %}
+
+{% block content %}
+{% set stats = data.summary_stats %}
+{% set events = data.laughter_events %}
+{% set paragraphs = data.paragraphs %}
+
+<!-- ── Header ──────────────────────────────────────────────────────────── -->
+<div class="d-flex align-items-start justify-content-between flex-wrap gap-3 mb-3">
+  <div>
+    <h4 class="mb-1">
+      {% if data.comedian and data.comedian != 'Unknown' %}
+        {{ data.comedian }}{% if data.special_name %}: <em>{{ data.special_name }}</em>{% endif %}
+      {% else %}
+        <code>{{ data.video_id }}</code>
+      {% endif %}
+      {% if data.year %}<span class="text-muted fs-6 ms-2">({{ data.year }})</span>{% endif %}
+    </h4>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      {% if data.transcript_type == 'manual' %}
+        <span class="badge bg-success">Manual Transcript</span>
+      {% elif data.transcript_type == 'auto' %}
+        <span class="badge bg-warning text-dark">Auto Transcript</span>
+      {% else %}
+        <span class="badge bg-secondary">No Transcript</span>
+      {% endif %}
+      <span class="text-muted small"><i class="bi bi-clock me-1"></i>{{ data.total_duration_sec | fmt_time }}</span>
+      {% if params %}<span class="text-muted small">Detection: <strong>{{ params.detection_mode }}</strong></span>{% endif %}
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    {% if job %}
+    <a href="{{ url_for('download', job_id=job.job_id, filetype='json') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>JSON</a>
+    <a href="{{ url_for('download', job_id=job.job_id, filetype='clean') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>Clean TXT</a>
+    <a href="{{ url_for('download', job_id=job.job_id, filetype='detailed') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>Detailed TXT</a>
+    {% else %}
+    <a href="{{ url_for('download_by_video', video_id=data.video_id, filetype='json') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>JSON</a>
+    <a href="{{ url_for('download_by_video', video_id=data.video_id, filetype='clean') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>Clean TXT</a>
+    <a href="{{ url_for('download_by_video', video_id=data.video_id, filetype='detailed') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-download me-1"></i>Detailed TXT</a>
+    {% endif %}
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-danger"><i class="bi bi-plus me-1"></i>New</a>
+  </div>
+</div>
+
+<!-- ── Media Player ────────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4" id="media-card">
+  <div class="card-header d-flex justify-content-between align-items-center py-2">
+    <span class="fw-semibold"><i class="bi bi-play-circle me-2"></i>Media Player</span>
+    <div class="btn-group btn-group-sm" role="group">
+      <input type="radio" class="btn-check" name="player_mode" id="mode_yt" value="youtube" autocomplete="off" checked>
+      <label class="btn btn-outline-danger" for="mode_yt"><i class="bi bi-youtube me-1"></i>YouTube</label>
+      {% if has_audio %}
+      <input type="radio" class="btn-check" name="player_mode" id="mode_audio" value="audio" autocomplete="off">
+      <label class="btn btn-outline-primary" for="mode_audio"><i class="bi bi-volume-up me-1"></i>Local Audio</label>
+      {% endif %}
+    </div>
+  </div>
+  <div class="card-body p-0">
+
+    <!-- YouTube Player -->
+    <div id="yt-player-wrap" class="ratio ratio-16x9" style="max-height: 400px; overflow: hidden;">
+      <div id="yt-player"></div>
+    </div>
+
+    {% if has_audio %}
+    <!-- Local Audio Player -->
+    <div id="audio-player-wrap" class="d-none p-3">
+      <audio id="local-audio" controls class="w-100" preload="none">
+        <source src="{{ audio_url }}" type="audio/wav">
+        Your browser does not support audio playback.
+      </audio>
+      <div class="text-muted small mt-1">
+        <i class="bi bi-info-circle me-1"></i>Local WAV (audience-separated audio used for detection)
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+
+<!-- ── Summary Cards ──────────────────────────────────────────────────── -->
+<div class="row g-3 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-danger">{{ stats.total_laughs }}</div>
+        <div class="text-muted small">Total Laughs</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ "%.1f" | format(stats.laughs_per_minute) }}</div>
+        <div class="text-muted small">Laughs / Min</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-info">{{ "%.1f" | format(stats.laugh_time_percentage) }}%</div>
+        <div class="text-muted small">Laugh Time</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-danger">{{ stats.big_laughs }}</div>
+        <div class="text-muted small"><span class="badge bg-danger">Big</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-warning">{{ stats.medium_laughs }}</div>
+        <div class="text-muted small"><span class="badge bg-warning text-dark">Medium</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="col-4 col-md-2">
+    <div class="card text-center h-100 border-0 shadow-sm">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-info">{{ stats.chuckles }}</div>
+        <div class="text-muted small"><span class="badge bg-info text-dark">Chuckle</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Secondary stats -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body py-2">
+        <div class="text-muted small">Avg Laugh Duration</div>
+        <div class="fw-semibold">{{ "%.2f" | format(stats.avg_laugh_duration) }}s</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body py-2">
+        <div class="text-muted small">Max Laugh Duration</div>
+        <div class="fw-semibold">{{ "%.2f" | format(stats.max_laugh_duration) }}s</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body py-2">
+        <div class="text-muted small">Avg Intensity</div>
+        <div class="fw-semibold">{{ "%.3f" | format(stats.avg_intensity) }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-body py-2">
+        <div class="text-muted small">Avg Latency</div>
+        <div class="fw-semibold">{{ "%.2f" | format(stats.avg_latency) }}s</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Charts ──────────────────────────────────────────────────────────── -->
+<div class="row g-4 mb-4">
+  <div class="col-md-4">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Intensity Distribution</div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        <canvas id="donutChart" style="max-height: 250px;"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-8">
+    <div class="card shadow-sm h-100">
+      <div class="card-header fw-semibold">Laughter Timeline <span class="text-muted small fw-normal">(click a point to seek)</span></div>
+      <div class="card-body">
+        <canvas id="timelineChart" style="height: 250px;"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Paragraphs ──────────────────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-layout-text-sidebar me-2"></i>Annotated Paragraphs</span>
+    <span class="badge bg-secondary">{{ paragraphs | length }} segments</span>
+  </div>
+  <div class="accordion accordion-flush" id="paragraphAccordion">
+    {% for para in paragraphs %}
+    <div class="accordion-item">
+      <h2 class="accordion-header">
+        <button class="accordion-button collapsed py-2" type="button"
+          data-bs-toggle="collapse" data-bs-target="#para{{ para.paragraph_id }}">
+          <span class="me-2 text-muted small fw-semibold">P{{ para.paragraph_id }}</span>
+          <!-- Seek button -->
+          <button type="button"
+            class="btn btn-outline-secondary btn-sm py-0 px-1 me-2 seek-btn"
+            data-seek="{{ para.start_time }}"
+            title="Seek to {{ para.start_time | fmt_time }}"
+            onclick="event.stopPropagation(); seekTo({{ para.start_time }})">
+            <i class="bi bi-play-fill"></i> {{ para.start_time | fmt_time }}
+          </button>
+          {% if para.has_laughs %}
+            <span class="badge bg-danger me-2">{{ para.laugh_count }} laugh{% if para.laugh_count != 1 %}s{% endif %}</span>
+          {% else %}
+            <span class="badge bg-light text-muted border me-2">setup</span>
+          {% endif %}
+          <span class="text-muted small text-truncate" style="max-width: 380px;">
+            {{ para.text[:100] }}{% if para.text | length > 100 %}…{% endif %}
+          </span>
+        </button>
+      </h2>
+      <div id="para{{ para.paragraph_id }}" class="accordion-collapse collapse">
+        <div class="accordion-body annotated-text">
+          {{ (para.annotated_text or para.text or '') | render_annotated }}
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- ── Laughter Events Table ───────────────────────────────────────────── -->
+<div class="card shadow-sm mb-4">
+  <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-table me-2"></i>Laughter Events</span>
+    <span class="badge bg-secondary">{{ events | length }} events</span>
+  </div>
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table class="table table-hover table-sm mb-0" id="eventsTable">
+        <thead class="table-light">
+          <tr>
+            <th class="sortable px-3" data-col="0"># <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th class="sortable" data-col="1">Start <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th class="sortable" data-col="2">End <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th class="sortable" data-col="3">Duration <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th class="sortable" data-col="4">Intensity <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th>Category</th>
+            <th class="sortable" data-col="6">Confidence <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th>Source</th>
+            <th class="sortable" data-col="8">Latency <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th>Spectral</th>
+            <th class="sortable" data-col="10">Centroid Hz <i class="bi bi-arrow-down-up text-muted small"></i></th>
+            <th>Play</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in events %}
+          <tr>
+            <td class="px-3">{{ e.event_id }}</td>
+            <td>{{ "%.2f" | format(e.start) }}s</td>
+            <td>{{ "%.2f" | format(e.end) }}s</td>
+            <td>{{ "%.2f" | format(e.duration) }}s</td>
+            <td>{{ "%.3f" | format(e.intensity) }}</td>
+            <td>
+              {% if e.intensity_category == 'big_laugh' %}
+                <span class="badge bg-danger">big</span>
+              {% elif e.intensity_category == 'medium_laugh' %}
+                <span class="badge bg-warning text-dark">medium</span>
+              {% else %}
+                <span class="badge bg-info text-dark">chuckle</span>
+              {% endif %}
+            </td>
+            <td>{{ "%.3f" | format(e.confidence) }}</td>
+            <td><span class="badge bg-secondary">{{ e.source }}</span></td>
+            <td>{{ "%.2f" | format(e.latency) }}s</td>
+            <td>
+              {% if e.spectral_valid %}
+                <i class="bi bi-check-circle-fill text-success"></i>
+              {% else %}
+                <i class="bi bi-x-circle-fill text-danger"></i>
+              {% endif %}
+            </td>
+            <td>{{ "%.0f" | format(e.spectral_centroid) }}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-danger py-0 px-1"
+                onclick="seekTo({{ e.start }})" title="Seek to {{ e.start | fmt_time }}">
+                <i class="bi bi-play-fill"></i>
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center px-3 py-2 border-top">
+      <span class="text-muted small" id="pagination-info"></span>
+      <div>
+        <button class="btn btn-sm btn-outline-secondary me-1" id="prev-page" onclick="changePage(-1)">
+          <i class="bi bi-chevron-left"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-secondary" id="next-page" onclick="changePage(1)">
+          <i class="bi bi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Parameters Used (only when run from a job) -->
+{% if params %}
+<div class="card shadow-sm mb-4">
+  <div class="card-header">
+    <button class="btn btn-link p-0 text-decoration-none fw-semibold text-body" type="button"
+      data-bs-toggle="collapse" data-bs-target="#paramsUsed">
+      <i class="bi bi-gear me-2"></i>Parameters Used
+    </button>
+  </div>
+  <div id="paramsUsed" class="collapse">
+    <div class="card-body">
+      <div class="row g-3">
+        <div class="col-md-2">
+          <h6 class="text-muted">Detection Mode</h6>
+          <code>{{ params.detection_mode }}</code>
+        </div>
+        <div class="col-md-3">
+          <h6 class="text-muted">Phase 3 — Detection</h6>
+          <ul class="list-unstyled small mb-0">
+            {% for k, v in params.phase3.items() %}<li><code>{{ k }}</code> = {{ v }}</li>{% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-3">
+          <h6 class="text-muted">Phase 4 — Post-Processing</h6>
+          <ul class="list-unstyled small mb-0">
+            {% for k, v in params.phase4.items() %}<li><code>{{ k }}</code> = {{ v }}</li>{% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-3">
+          <h6 class="text-muted">Phase 7 — Segmentation</h6>
+          <ul class="list-unstyled small mb-0">
+            {% for k, v in params.phase7.items() %}<li><code>{{ k }}</code> = {{ v }}</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const VIDEO_ID = {{ data.video_id | tojson }};
+const eventsData = {{ data.laughter_events | tojson }};
+const totalDuration = {{ data.total_duration_sec }};
+const bigCount = {{ data.summary_stats.big_laughs }};
+const mediumCount = {{ data.summary_stats.medium_laughs }};
+const chuckleCount = {{ data.summary_stats.chuckles }};
+const hasAudio = {{ 'true' if has_audio else 'false' }};
+
+// ── YouTube IFrame API ───────────────────────────────────────────────────────
+var ytPlayer = null;
+
+function onYouTubeIframeAPIReady() {
+  ytPlayer = new YT.Player('yt-player', {
+    videoId: VIDEO_ID,
+    playerVars: { rel: 0, modestbranding: 1 },
+  });
+}
+
+// Dynamically load YouTube IFrame API
+(function() {
+  var tag = document.createElement('script');
+  tag.src = 'https://www.youtube.com/iframe_api';
+  document.head.appendChild(tag);
+})();
+
+// ── Player Mode Toggle ───────────────────────────────────────────────────────
+document.querySelectorAll('input[name="player_mode"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    const ytWrap = document.getElementById('yt-player-wrap');
+    const audioWrap = document.getElementById('audio-player-wrap');
+    if (this.value === 'youtube') {
+      ytWrap && ytWrap.classList.remove('d-none');
+      audioWrap && audioWrap.classList.add('d-none');
+    } else {
+      ytWrap && ytWrap.classList.add('d-none');
+      audioWrap && audioWrap.classList.remove('d-none');
+    }
+  });
+});
+
+// ── Seek Function ────────────────────────────────────────────────────────────
+function seekTo(seconds) {
+  const mode = document.querySelector('input[name="player_mode"]:checked');
+  const isYt = !mode || mode.value === 'youtube';
+
+  if (isYt && ytPlayer && typeof ytPlayer.seekTo === 'function') {
+    ytPlayer.seekTo(seconds, true);
+    ytPlayer.playVideo();
+    document.getElementById('media-card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } else if (!isYt || !ytPlayer) {
+    const audio = document.getElementById('local-audio');
+    if (audio) {
+      audio.currentTime = seconds;
+      audio.play();
+    }
+  }
+}
+
+// ── Charts ───────────────────────────────────────────────────────────────────
+new Chart(document.getElementById('donutChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Big Laugh', 'Medium Laugh', 'Chuckle'],
+    datasets: [{
+      data: [bigCount, mediumCount, chuckleCount],
+      backgroundColor: ['#dc3545', '#fd7e14', '#0dcaf0'],
+      borderWidth: 2,
+    }]
+  },
+  options: {
+    plugins: { legend: { position: 'bottom' } },
+    cutout: '55%',
+  }
+});
+
+const colorMap = { big_laugh: '#dc3545', medium_laugh: '#fd7e14', chuckle: '#0dcaf0' };
+const scatterData = eventsData.map(e => ({
+  x: e.start, y: e.intensity,
+  category: e.intensity_category, duration: e.duration,
+}));
+
+const timelineChart = new Chart(document.getElementById('timelineChart'), {
+  type: 'scatter',
+  data: {
+    datasets: [{
+      label: 'Laughter Events',
+      data: scatterData,
+      pointBackgroundColor: scatterData.map(d => colorMap[d.category] || '#888'),
+      pointRadius: scatterData.map(d => Math.max(3, Math.min(12, d.duration * 3))),
+      pointHoverRadius: 9,
+    }]
+  },
+  options: {
+    responsive: true,
+    onClick: (evt, elements) => {
+      if (elements.length > 0) {
+        const idx = elements[0].index;
+        seekTo(scatterData[idx].x);
+      }
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        callbacks: {
+          label: ctx => {
+            const d = scatterData[ctx.dataIndex];
+            return `t=${ctx.parsed.x.toFixed(1)}s  intensity=${ctx.parsed.y.toFixed(3)}  dur=${d.duration.toFixed(2)}s`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: { title: { display: true, text: 'Time (s)' }, min: 0, max: totalDuration },
+      y: { title: { display: true, text: 'Intensity' }, min: 0, max: 1 }
+    }
+  }
+});
+
+// ── Sortable + Paginated Table ───────────────────────────────────────────────
+const PAGE_SIZE = 20;
+let currentPage = 0;
+let sortCol = 0;
+let sortAsc = true;
+
+const tbody = document.querySelector('#eventsTable tbody');
+const allRows = Array.from(tbody.querySelectorAll('tr'));
+
+function getColValue(row, col) {
+  const text = row.cells[col].textContent.trim().replace(/[s%]$/, '');
+  const n = parseFloat(text);
+  return isNaN(n) ? text : n;
+}
+
+function renderTable() {
+  const sorted = [...allRows].sort((a, b) => {
+    const va = getColValue(a, sortCol), vb = getColValue(b, sortCol);
+    if (va < vb) return sortAsc ? -1 : 1;
+    if (va > vb) return sortAsc ? 1 : -1;
+    return 0;
+  });
+  const start = currentPage * PAGE_SIZE;
+  const end = start + PAGE_SIZE;
+  tbody.innerHTML = '';
+  sorted.slice(start, end).forEach(r => tbody.appendChild(r));
+  document.getElementById('pagination-info').textContent =
+    `Showing ${start + 1}–${Math.min(end, allRows.length)} of ${allRows.length}`;
+  document.getElementById('prev-page').disabled = currentPage === 0;
+  document.getElementById('next-page').disabled = end >= allRows.length;
+}
+
+function changePage(delta) {
+  const maxPage = Math.ceil(allRows.length / PAGE_SIZE) - 1;
+  currentPage = Math.max(0, Math.min(currentPage + delta, maxPage));
+  renderTable();
+}
+
+document.querySelectorAll('#eventsTable th.sortable').forEach(th => {
+  th.style.cursor = 'pointer';
+  th.addEventListener('click', () => {
+    const col = parseInt(th.dataset.col);
+    if (col === sortCol) sortAsc = !sortAsc; else { sortCol = col; sortAsc = true; }
+    currentPage = 0;
+    renderTable();
+  });
+});
+
+renderTable();
+</script>
+{% endblock %}

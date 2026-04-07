@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% block title %}Punchline Detector — Run Analysis{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-8">
+
+    <div class="card shadow-sm mb-4">
+      <div class="card-body p-4">
+        <h4 class="card-title mb-1"><i class="bi bi-mic-fill text-danger me-2"></i>Comedy Analysis Pipeline</h4>
+        <p class="text-muted mb-4">Enter a YouTube video ID to detect and analyse laughter in stand-up comedy specials.</p>
+
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="{{ url_for('run') }}">
+
+          <!-- Video ID -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold" for="video_id">YouTube Video ID</label>
+            <input
+              type="text"
+              class="form-control form-control-lg"
+              id="video_id"
+              name="video_id"
+              placeholder="e.g. QhMO5SSmiaA"
+              pattern="[A-Za-z0-9_\-]{1,20}"
+              required
+              autofocus
+            >
+            <div class="form-text">The 11-character ID from the YouTube URL: youtube.com/watch?v=<strong>VIDEO_ID</strong></div>
+          </div>
+
+          <!-- Detection Mode -->
+          <div class="mb-4">
+            <label class="form-label fw-semibold d-block">Laughter Detection Mode</label>
+            <div class="btn-group" role="group" id="detection-mode-group">
+              <input type="radio" class="btn-check" name="detection_mode" id="mode_yamnet" value="yamnet" autocomplete="off">
+              <label class="btn btn-outline-primary" for="mode_yamnet">YAMNet Only</label>
+
+              <input type="radio" class="btn-check" name="detection_mode" id="mode_gillick" value="gillick" autocomplete="off">
+              <label class="btn btn-outline-primary" for="mode_gillick">Gillick Only</label>
+
+              <input type="radio" class="btn-check" name="detection_mode" id="mode_ensemble" value="ensemble" autocomplete="off" checked>
+              <label class="btn btn-outline-primary" for="mode_ensemble">Both (Ensemble)</label>
+            </div>
+            <div class="form-text mt-1">Ensemble combines both detectors for higher accuracy.</div>
+          </div>
+
+          <!-- Skip QA -->
+          <div class="mb-4">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="skip_qa" id="skip_qa">
+              <label class="form-check-label" for="skip_qa">Skip QA sampling (Phase 6)</label>
+            </div>
+          </div>
+
+          <!-- Advanced Parameters Accordion -->
+          <div class="accordion mb-4" id="paramsAccordion">
+
+            <!-- Phase 3 -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#phase3Panel">
+                  <i class="bi bi-search me-2"></i>Phase 3 — Laughter Detection Parameters
+                </button>
+              </h2>
+              <div id="phase3Panel" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                  <fieldset id="yamnet-fields">
+                    <legend class="fs-6 fw-semibold text-primary mb-2">YAMNet Detector</legend>
+                    <div class="row g-3 mb-3">
+                      <div class="col-md-4">
+                        <label class="form-label">Confidence Threshold</label>
+                        <input type="number" class="form-control" name="p3_yamnet_confidence_threshold"
+                          value="{{ defaults.p3_yamnet_confidence_threshold }}" step="0.01" min="0" max="1">
+                        <div class="form-text">Min score to count as laughter (0–1)</div>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Frame Duration (s)</label>
+                        <input type="number" class="form-control" name="p3_yamnet_frame_duration"
+                          value="{{ defaults.p3_yamnet_frame_duration }}" step="0.01" min="0.1" max="5">
+                        <div class="form-text">Analysis window length</div>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Hop Duration (s)</label>
+                        <input type="number" class="form-control" name="p3_yamnet_hop_duration"
+                          value="{{ defaults.p3_yamnet_hop_duration }}" step="0.01" min="0.05" max="2">
+                        <div class="form-text">Step between frames</div>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <hr>
+
+                  <fieldset id="gillick-fields">
+                    <legend class="fs-6 fw-semibold text-success mb-2">Gillick Detector</legend>
+                    <div class="row g-3 mb-3">
+                      <div class="col-md-4">
+                        <label class="form-label">Threshold</label>
+                        <input type="number" class="form-control" name="p3_gillick_threshold"
+                          value="{{ defaults.p3_gillick_threshold }}" step="0.01" min="0" max="1">
+                        <div class="form-text">Detection confidence cutoff</div>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label">Min Length (s)</label>
+                        <input type="number" class="form-control" name="p3_gillick_min_length"
+                          value="{{ defaults.p3_gillick_min_length }}" step="0.01" min="0.01" max="2">
+                        <div class="form-text">Shortest detectable laugh</div>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                  <hr>
+
+                  <fieldset id="ensemble-fields">
+                    <legend class="fs-6 fw-semibold text-warning mb-2">Ensemble</legend>
+                    <div class="row g-3">
+                      <div class="col-md-4">
+                        <label class="form-label">Overlap Threshold</label>
+                        <input type="number" class="form-control" name="p3_ensemble_overlap_threshold"
+                          value="{{ defaults.p3_ensemble_overlap_threshold }}" step="0.01" min="0" max="1">
+                        <div class="form-text">Min overlap to merge detections</div>
+                      </div>
+                    </div>
+                  </fieldset>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 4 -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#phase4Panel">
+                  <i class="bi bi-funnel me-2"></i>Phase 4 — Post-Processing Parameters
+                </button>
+              </h2>
+              <div id="phase4Panel" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                  <p class="text-muted small mb-3">Merge, filter, and classify detected events by intensity and spectral properties.</p>
+
+                  <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                      <label class="form-label">Max Gap to Merge (s)</label>
+                      <input type="number" class="form-control" name="p4_max_gap"
+                        value="{{ defaults.p4_max_gap }}" step="0.01" min="0" max="2">
+                      <div class="form-text">Events closer than this are merged</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Min Duration (s)</label>
+                      <input type="number" class="form-control" name="p4_min_duration"
+                        value="{{ defaults.p4_min_duration }}" step="0.01" min="0" max="5">
+                      <div class="form-text">Shorter events are discarded</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Max Duration (s)</label>
+                      <input type="number" class="form-control" name="p4_max_duration"
+                        value="{{ defaults.p4_max_duration }}" step="1" min="5" max="120">
+                      <div class="form-text">Longer events are discarded</div>
+                    </div>
+                  </div>
+
+                  <div class="row g-3 mb-3">
+                    <div class="col-md-3">
+                      <label class="form-label">Big Laugh Threshold</label>
+                      <input type="number" class="form-control" name="p4_big_threshold"
+                        value="{{ defaults.p4_big_threshold }}" step="0.01" min="0" max="1">
+                      <div class="form-text">Intensity ≥ this → big laugh</div>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Medium Laugh Threshold</label>
+                      <input type="number" class="form-control" name="p4_medium_threshold"
+                        value="{{ defaults.p4_medium_threshold }}" step="0.01" min="0" max="1">
+                      <div class="form-text">Intensity ≥ this → medium laugh</div>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Min Spectral Centroid (Hz)</label>
+                      <input type="number" class="form-control" name="p4_min_centroid"
+                        value="{{ defaults.p4_min_centroid }}" step="50" min="100" max="2000">
+                      <div class="form-text">Spectral validation lower bound</div>
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Max Spectral Centroid (Hz)</label>
+                      <input type="number" class="form-control" name="p4_max_centroid"
+                        value="{{ defaults.p4_max_centroid }}" step="50" min="1000" max="8000">
+                      <div class="form-text">Spectral validation upper bound</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+            <!-- Phase 7 -->
+            <div class="accordion-item">
+              <h2 class="accordion-header">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#phase7Panel">
+                  <i class="bi bi-layout-text-sidebar me-2"></i>Phase 7 — Segmentation Parameters
+                </button>
+              </h2>
+              <div id="phase7Panel" class="accordion-collapse collapse">
+                <div class="accordion-body">
+
+                  <p class="text-muted small mb-3">Controls how the transcript is split into comedy bits/paragraphs.</p>
+
+                  <div class="row g-3 mb-3">
+                    <div class="col-md-4">
+                      <label class="form-label">Min Pause (s)</label>
+                      <input type="number" class="form-control" name="p7_min_pause"
+                        value="{{ defaults.p7_min_pause }}" step="0.1" min="0.5" max="10">
+                      <div class="form-text">Silence longer than this triggers a break</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Semantic Shift Threshold</label>
+                      <input type="number" class="form-control" name="p7_shift_threshold"
+                        value="{{ defaults.p7_shift_threshold }}" step="0.01" min="0.1" max="1">
+                      <div class="form-text">Cosine similarity below this → topic change</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Min Post-Laugh Pause (s)</label>
+                      <input type="number" class="form-control" name="p7_min_post_laugh_pause"
+                        value="{{ defaults.p7_min_post_laugh_pause }}" step="0.1" min="0.5" max="10">
+                      <div class="form-text">Pause after big laugh to trigger break</div>
+                    </div>
+                  </div>
+
+                  <div class="row g-3">
+                    <div class="col-md-4">
+                      <label class="form-label">Vote Threshold</label>
+                      <input type="number" class="form-control" name="p7_vote_threshold"
+                        value="{{ defaults.p7_vote_threshold }}" step="0.01" min="0" max="1">
+                      <div class="form-text">Min combined signal score for a break</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Min Paragraph Duration (s)</label>
+                      <input type="number" class="form-control" name="p7_min_paragraph_duration"
+                        value="{{ defaults.p7_min_paragraph_duration }}" step="1" min="1" max="30">
+                      <div class="form-text">Minimum time between breaks</div>
+                    </div>
+                    <div class="col-md-4">
+                      <label class="form-label">Max Paragraph Duration (s)</label>
+                      <input type="number" class="form-control" name="p7_max_paragraph_duration"
+                        value="{{ defaults.p7_max_paragraph_duration }}" step="5" min="10" max="300">
+                      <div class="form-text">Force-cut paragraphs longer than this</div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /accordion -->
+
+          <div class="d-grid">
+            <button type="submit" class="btn btn-danger btn-lg">
+              <i class="bi bi-play-fill me-2"></i>Run Pipeline
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Disable/enable parameter fields based on detection mode selection
+const modeRadios = document.querySelectorAll('input[name="detection_mode"]');
+
+function updateFields() {
+  const mode = document.querySelector('input[name="detection_mode"]:checked').value;
+  const yamnetFields = document.querySelectorAll('#yamnet-fields input');
+  const gillickFields = document.querySelectorAll('#gillick-fields input');
+  const ensembleFields = document.querySelectorAll('#ensemble-fields input');
+
+  yamnetFields.forEach(f => f.disabled = (mode === 'gillick'));
+  gillickFields.forEach(f => f.disabled = (mode === 'yamnet'));
+  ensembleFields.forEach(f => f.disabled = (mode !== 'ensemble'));
+}
+
+modeRadios.forEach(r => r.addEventListener('change', updateFields));
+updateFields();
+</script>
+{% endblock %}

@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}History — Punchline Detector{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-11">
+    <div class="card shadow-sm">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span class="fw-semibold"><i class="bi bi-clock-history me-2"></i>Previous Analyses</span>
+        <a href="{{ url_for('index') }}" class="btn btn-sm btn-danger">
+          <i class="bi bi-plus me-1"></i>New Analysis
+        </a>
+      </div>
+      {% if results %}
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>Video</th>
+              <th>Comedian</th>
+              <th>Special</th>
+              <th>Year</th>
+              <th>Duration</th>
+              <th>Total Laughs</th>
+              <th>Laughs/Min</th>
+              <th>Audio</th>
+              <th class="text-end pe-3">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr>
+              <td>
+                <a href="{{ url_for('view', video_id=r.video_id) }}" class="text-decoration-none fw-semibold">
+                  {{ r.video_id }}
+                </a>
+              </td>
+              <td>{{ r.comedian or '—' }}</td>
+              <td class="text-muted small">{{ r.special_name or '—' }}</td>
+              <td>{{ r.year or '—' }}</td>
+              <td class="text-muted small">{{ r.total_duration_sec | fmt_time }}</td>
+              <td><span class="badge bg-danger">{{ r.total_laughs }}</span></td>
+              <td>{{ "%.1f" | format(r.laughs_per_minute) }}</td>
+              <td>
+                {% if r.has_audio %}
+                  <i class="bi bi-volume-up-fill text-success" title="Local audio available"></i>
+                {% else %}
+                  <i class="bi bi-youtube text-danger" title="YouTube only"></i>
+                {% endif %}
+              </td>
+              <td class="text-end pe-3">
+                <a href="{{ url_for('view', video_id=r.video_id) }}"
+                   class="btn btn-sm btn-primary me-1" title="View analysis">
+                  <i class="bi bi-bar-chart-line"></i> View
+                </a>
+                <a href="https://youtube.com/watch?v={{ r.video_id }}" target="_blank"
+                   class="btn btn-sm btn-outline-danger me-1" title="Watch on YouTube">
+                  <i class="bi bi-youtube"></i>
+                </a>
+                <div class="btn-group">
+                  <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                    data-bs-toggle="dropdown" title="Download">
+                    <i class="bi bi-download"></i>
+                  </button>
+                  <ul class="dropdown-menu dropdown-menu-end">
+                    <li><a class="dropdown-item" href="{{ url_for('download_by_video', video_id=r.video_id, filetype='json') }}">JSON</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('download_by_video', video_id=r.video_id, filetype='clean') }}">Clean TXT</a></li>
+                    <li><a class="dropdown-item" href="{{ url_for('download_by_video', video_id=r.video_id, filetype='detailed') }}">Detailed TXT</a></li>
+                  </ul>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="card-body text-center text-muted py-5">
+        <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+        No analyses yet. <a href="{{ url_for('index') }}">Run your first video.</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -10,3 +10,4 @@ dataset/
 *.mp4
 separated/
 .env
+.claude/

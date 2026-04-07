@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Running Pipeline — {{ job.video_id }}{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-body p-5 text-center">
+
+        <div id="running-view">
+          <div class="spinner-border text-danger mb-4" style="width: 3rem; height: 3rem;" role="status">
+            <span class="visually-hidden">Running...</span>
+          </div>
+          <h5 class="mb-1">Processing <code>{{ job.video_id }}</code></h5>
+          <p class="text-muted mb-4" id="phase-label">{{ job.phase }}</p>
+
+          <div class="progress mb-3" style="height: 20px;">
+            <div
+              id="progress-bar"
+              class="progress-bar progress-bar-striped progress-bar-animated bg-danger"
+              role="progressbar"
+              style="width: {{ job.progress_pct }}%"
+              aria-valuenow="{{ job.progress_pct }}"
+              aria-valuemin="0"
+              aria-valuemax="100"
+            >{{ job.progress_pct }}%</div>
+          </div>
+
+          <p class="text-muted small">This may take several minutes. The page will update automatically.</p>
+        </div>
+
+        <div id="error-view" class="d-none">
+          <i class="bi bi-x-circle-fill text-danger" style="font-size: 3rem;"></i>
+          <h5 class="mt-3 mb-2">Pipeline Failed</h5>
+          <div class="alert alert-danger text-start mt-3" id="error-message"></div>
+          <a href="{{ url_for('index') }}" class="btn btn-outline-secondary mt-2">
+            <i class="bi bi-arrow-left me-1"></i>Try Again
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const jobId = {{ job.job_id | tojson }};
+const statusUrl = `/api/job/${jobId}/status`;
+const resultsUrl = `/results/${jobId}`;
+
+function poll() {
+  fetch(statusUrl)
+    .then(r => r.json())
+    .then(data => {
+      if (data.status === 'done') {
+        window.location.href = resultsUrl;
+        return;
+      }
+      if (data.status === 'error') {
+        document.getElementById('running-view').classList.add('d-none');
+        const errView = document.getElementById('error-view');
+        errView.classList.remove('d-none');
+        document.getElementById('error-message').textContent = data.error || 'Unknown error';
+        return;
+      }
+      // Update progress
+      const pct = data.progress_pct || 0;
+      const bar = document.getElementById('progress-bar');
+      bar.style.width = pct + '%';
+      bar.textContent = pct + '%';
+      bar.setAttribute('aria-valuenow', pct);
+      document.getElementById('phase-label').textContent = data.phase || 'Processing...';
+
+      setTimeout(poll, 2000);
+    })
+    .catch(() => setTimeout(poll, 3000));
+}
+
+setTimeout(poll, 2000);
+</script>
+{% endblock %}

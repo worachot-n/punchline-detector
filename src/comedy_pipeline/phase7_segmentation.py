@@ -216,6 +216,9 @@ def find_paragraph_breaks(
     vote_threshold: float = 0.25,
     min_paragraph_duration: float = 5.0,
     max_paragraph_duration: float = 30.0,
+    min_pause: float = 2.0,
+    shift_threshold: float = 0.55,
+    min_post_laugh_pause: float = 2.0,
 ) -> list[float]:
     """
     Combine all 4 signals using weighted voting to find paragraph breaks.
@@ -238,10 +241,10 @@ def find_paragraph_breaks(
 
     # Collect signals from all detectors
     signals = {
-        "long_pause": detect_long_pauses(timeline),
+        "long_pause": detect_long_pauses(timeline, min_pause=min_pause),
         "transition_phrase": detect_transition_phrases(timeline),
-        "semantic_shift": detect_semantic_shifts(timeline),
-        "post_big_laugh_pause": detect_post_laugh_breaks(timeline),
+        "semantic_shift": detect_semantic_shifts(timeline, shift_threshold=shift_threshold),
+        "post_big_laugh_pause": detect_post_laugh_breaks(timeline, min_post_laugh_pause=min_post_laugh_pause),
     }
 
     # All speech timestamps as candidate break points
